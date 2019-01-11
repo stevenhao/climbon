@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import './App.css';
 // import ReactTable from 'react-table';
 import _ from 'lodash';
-
+const IK = window.IK;
 const THREE = window.THREE;
 const global = (varName, obj) => {
   console.log(varName, obj);
@@ -51,6 +51,11 @@ class App extends Component {
     showing: {},
     selectedIndex: -1,
   }
+  config = {
+    constraintAngle: 100,
+  }
+  iks = []
+  gizmos = []
   container = React.createRef()
   async componentDidMount() {
     global('app', this);
@@ -85,6 +90,9 @@ class App extends Component {
         renderer.setClearColor(0x000000, 1);
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.autoClear = false;
+        for (const ik of this.iks) {
+          ik.solve();
+        }
 
         // renderer.render(scene2, camera);
         // renderer.render(scene3, camera);
@@ -96,6 +104,7 @@ class App extends Component {
     this.scene2 = scene2
     this.scene3 = scene3
     this.camera = camera
+    this.renderer = renderer
 
 
     const light = new THREE.HemisphereLight( 0xbbbbff, 0x444422 );
@@ -123,6 +132,7 @@ class App extends Component {
     ));
     // const bones = this.skinMesh.skeleton.bones;
     this.state.bones = bones;
+    this.bones = bones;
     this.bonesMap = new Map();
     bones.forEach((bone, idx) => {
       this.bonesMap.set(bone.name, idx);
@@ -154,6 +164,56 @@ class App extends Component {
     // this.highlightMesh = highlightMesh;
 
     window.addEventListener('keydown', this.handleKeyDown);
+
+    this.setupIK();
+    const helper = new THREE.IKHelper(this.iks[0]);
+    scene.add(helper);
+
+  }
+
+  createTarget(position) {
+    const gizmo = new THREE.TransformControls(this.camera, this.renderer.domElement);
+    const target = new THREE.Object3D();
+    gizmo.setSize(0.5);
+    gizmo.attach(target);
+    gizmo.target = target;
+    target.position.copy(position);
+
+    this.scene.add(gizmo);
+    this.scene.add(target);
+    this.gizmos.push(gizmo);
+
+    return target;
+  }
+
+  setupIK() {
+    const ik = new IK.IK();
+    const chain = new IK.IKChain();
+    const constraint = new IK.IKBallConstraint(this.config.constraintAngle);
+
+    for (const bone of this.bones) {
+      const constraints = [constraint];
+      chain.add(new IK.IKJoint(bone, { constraints }));
+      // if (i === COUNT - 1) {
+        // const target = this.createTarget(new THREE.Vector3(0, i * DISTANCE), 0);
+        // chain.add(new IK.IKJoint(bone, { constraints }), { target });
+      // }
+    }
+    // Add the chain to the IK system
+    ik.add(chain);
+
+    this.pivot = new THREE.Object3D();
+    this.pivot.rotation.x = -Math.PI / 2;
+    // Add the root bone to the scene
+    this.pivot.add(ik.getRootBone());
+
+    this.baseTarget = this.createTarget(new THREE.Vector3());
+    this.baseTarget.add(this.pivot);
+
+    this.iks.push(ik);
+
+    const handBone = this.bones.filter(bone => bone.name === 'mixamorigLeftHand')
+    console.log(handBone);
   }
 
   recomputeColors() {
