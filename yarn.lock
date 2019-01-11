@@ -6748,7 +6748,7 @@ p-try@^2.0.0:
   resolved "https://registry.yarnpkg.com/p-try/-/p-try-2.0.0.tgz#85080bb87c64688fa47996fe8f7dfbe8211760b1"
   integrity sha512-hMp0onDKIajHfIkdRk3P4CdCmErkYAxxDtP3Wx/4nZ3aGlau2VKh3mZpcuFkH27WQkL/3WBCPOktzA9ZOAnMQQ==
 
-pako@~1.0.5:
+pako@^1.0.6, pako@~1.0.5:
   version "1.0.7"
   resolved "https://registry.yarnpkg.com/pako/-/pako-1.0.7.tgz#2473439021b57f1516c82f58be7275ad8ef1bb27"
   integrity sha512-3HNK5tW4x8o5mO8RuHZp3Ydw9icZXx0RANAOMzlMzx7LVXhMJ4mo3MOBpzyd7r/+RUu8BmndP47LXT+vzjtWcQ==
@@ -9146,10 +9146,23 @@ text-table@0.2.0, text-table@^0.2.0:
   resolved "https://registry.yarnpkg.com/text-table/-/text-table-0.2.0.tgz#7f5ee823ae805207c00af2df4a84ec3fcfa570b4"
   integrity sha1-f17oI66AUgfACvLfSoTsP8+lcLQ=
 
+three-fbx-loader@^1.0.3:
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/three-fbx-loader/-/three-fbx-loader-1.0.3.tgz#7993429043cdc32f11882a9fefc9bee2f2d6d222"
+  integrity sha512-CQZ0IkwqX+ZbIca225mfKCq1feH8XJOf2zqMcC2bugvq20S7alHGsG9QEELbyN9zSL0EvkBXADVDO2lupF0E+A==
+  dependencies:
+    pako "^1.0.6"
+    three "^0.89.0"
+
 three-full@^11.3.2:
   version "11.3.2"
   resolved "https://registry.yarnpkg.com/three-full/-/three-full-11.3.2.tgz#9484fe246caf70875ab9941d962b4af944b28b5f"
   integrity sha512-0qv9kLe2bp1ksV3mgjyzWtIBO//U19+RzoyAuSGkSKKYF0M3zxAwWU5L6rRhVj6L/GGlbUb4EHMa8QhcW8/Rtw==
+
+three@^0.89.0:
+  version "0.89.0"
+  resolved "https://registry.yarnpkg.com/three/-/three-0.89.0.tgz#4442d819a6168871b8d2cb37ad12a24310c170f5"
+  integrity sha1-RELYGaYWiHG40ss3rRKiQxDBcPU=
 
 throat@^4.0.0:
   version "4.1.0"
