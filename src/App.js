@@ -45,6 +45,63 @@ const Bone = (props) => {
   );
 }
 
+const joints = {
+  'LeftArm': {
+    y: [-1, 1],
+    z: [-1.5, 1],
+  },
+  'LeftForeArm': {
+    y: [-2, 0],
+  },
+  'LeftShoulder': {
+    x: [-1.5, 1],
+    y: [-2, 1],
+  },
+  'RightArm': {
+    y: [-1, 1],
+    z: [-1, 1.5],
+  },
+  'RightForeArm': {
+    y: [0, 2],
+  },
+  'RightShoulder': {
+    x: [-1, 1.5],
+    y: [-1, 2],
+  },
+  'Spine': {
+    x: [-1.5, 1.5],
+    y: [-0.5, 0.5],
+    z: [-1.5, 1.5],
+  },
+  'Spine1': {
+    x: [-.2, 1.5],
+    y: [-.2, .2],
+    z: [-1, 1],
+  },
+  'Spine2': {
+    y: [-1, 1],
+  },
+  'LeftUpLeg': {
+    x: [-3, 0.5],
+  },
+  'LeftLeg': {
+    x: [0, 2.5],
+  },
+  'LeftFoot': {
+    x: [-1, 1],
+  },
+  'RightUpLeg': {
+    x: [-3, 0.5],
+  },
+  'RightLeg': {
+    x: [0, 2.5],
+  },
+  'RightFoot': {
+    x: [-1, 1],
+  },
+};
+
+
 class App extends Component {
   state = {
     bones: [],
@@ -91,7 +148,7 @@ class App extends Component {
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.autoClear = false;
         for (const ik of this.iks) {
-          ik.solve();
+          // ik.solve();
         }
 
         // renderer.render(scene2, camera);
@@ -135,6 +192,7 @@ class App extends Component {
     this.bones = bones;
     this.bonesMap = new Map();
     bones.forEach((bone, idx) => {
+      bone.name = bone.name.substring(9);
       this.bonesMap.set(bone.name, idx);
     })
     this.recomputeColors();
@@ -147,8 +205,6 @@ class App extends Component {
     this.jointMesh.material.transparent = true;
 
     global('skinGeometry', this.skinMesh.geometry);
-    window.skinGeometry = this.skinMesh.geometry;
-    console.log('skinGeometry', window.skinGeometry);
     const geometry = new THREE.SphereGeometry( 5, 3, 3 );
     const material = new THREE.MeshBasicMaterial( {color: 0xffff00} );
     const sphere = new THREE.Mesh( geometry, material );
@@ -164,10 +220,6 @@ class App extends Component {
     // this.highlightMesh = highlightMesh;
 
     window.addEventListener('keydown', this.handleKeyDown);
-
-    this.setupIK();
-    const helper = new THREE.IKHelper(this.iks[0]);
-    scene.add(helper);
 
   }
 
@@ -194,10 +246,6 @@ class App extends Component {
     for (const bone of this.bones) {
       const constraints = [constraint];
       chain.add(new IK.IKJoint(bone, { constraints }));
-      // if (i === COUNT - 1) {
-        // const target = this.createTarget(new THREE.Vector3(0, i * DISTANCE), 0);
-        // chain.add(new IK.IKJoint(bone, { constraints }), { target });
-      // }
     }
     // Add the chain to the IK system
     ik.add(chain);
@@ -211,9 +259,6 @@ class App extends Component {
     this.baseTarget.add(this.pivot);
 
     this.iks.push(ik);
-
-    const handBone = this.bones.filter(bone => bone.name === 'mixamorigLeftHand')
-    console.log(handBone);
   }
 
   recomputeColors() {
@@ -285,7 +330,10 @@ class App extends Component {
     if (ev.metaKey || ev.ctrlKey) return;
     ev.preventDefault();
     ev.stopPropagation();
-
+    if (code === ' ') {
+      this.wiggle();
+      return;
+    }
     if (code === 'Tab') {
       this.setState({
         selectedIndex: (this.state.selectedIndex + (ev.shiftKey ? (this.state.bones.length - 1) : 1)) % Math.max(1, this.state.bones.length),
@@ -293,19 +341,29 @@ class App extends Component {
     }
     const bone = this.state.bones[this.state.selectedIndex];
     if (!bone) return;
-    if (code === 'w') {
-      bone.rotation.x -= 0.1;
-    } else if (code === 's') {
-      bone.rotation.x += 0.1;
-    } else if (code === 'a') {
-      bone.rotation.z += 0.1;
-    } else if (code === 'd') {
-      bone.rotation.z -= 0.1;
-    } else if (code === 'q') {
-      bone.rotation.y -= 0.1;
-    } else if (code === 'e') {
-      bone.rotation.y += 0.1;
+    const joint = joints[bone.name] || {};
+    const translateKey = code => {
+      const delta = 0.1;
+      if (code === 'w') {
+        return { delta: -delta, axis: 'x' };
+      } else if (code === 's') {
+        return { delta, axis: 'x' };
+      } else if (code === 'a') {
+        return { delta, axis: 'z' };
+      } else if (code === 'd') {
+        return { delta: -delta, axis: 'z' };
+      } else if (code === 'q') {
+        return { delta: -delta, axis: 'y' };
+      } else if (code === 'e') {
+        return { delta, axis: 'y' };
+      }
     }
+    const { delta, axis } = translateKey(code) || {};
+    if (!axis) return;
+    const { [axis]: constraint = [0, 0] } = joint;
+    let newRotation = bone.rotation[axis] + delta;
+    // newRotation =_.clamp(newRotation, ...constraint);
+    bone.rotation[axis] = newRotation;
   }
 
   get parentIndex() {
@@ -379,6 +437,18 @@ class App extends Component {
         </div>
       </div>
     );
+  }
+
+  wiggle() {
+    console.log('wiggling');
+    for (const bone of this.bones) {
+      for (const axis of ['x', 'y', 'z']) {
+        const delta = (Math.random() - 0.5) / 2;
+        bone.rotation[axis] += delta;
+        const constraint = _.get(joints, [bone.name, axis], [0, 0]);
+        bone.rotation[axis] = _.clamp(bone.rotation[axis], ...constraint);
+      }
+    }
   }
 }
 
