@@ -113,8 +113,6 @@ class App extends Component {
   config = {
     constraintAngle: 100,
   }
-  iks = []
-  gizmos = []
   container = React.createRef()
   async componentDidMount() {
     global('app', this);
@@ -149,9 +147,6 @@ class App extends Component {
         renderer.setClearColor(0x000000, 1);
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.autoClear = false;
-        for (const ik of this.iks) {
-          // ik.solve();
-        }
 
         // renderer.render(scene2, camera);
         // renderer.render(scene3, camera);
@@ -212,10 +207,11 @@ class App extends Component {
       this.makeHold(0, 200, 5),
       this.makeHold(-80, 400, 10),
     ];
-    for (const hold of this.holds) {
+    this.holds.forEach((hold, i) => {
       this.scene.add(hold)
-    }
-
+      hold.holdIndex = i;
+    });
+    this.recomputeHoldColors();
     global('skinGeometry', this.skinMesh.geometry);
     const geometry = new THREE.SphereGeometry( 5, 3, 3 );
     const material = new THREE.MeshBasicMaterial( {color: 0xffff00} );
@@ -248,6 +244,17 @@ class App extends Component {
     return sphere;
   }
 
+  recomputeHoldColors() {
+    this.holds.forEach((hold, i) => {
+      const mat = hold.material;
+      if (this.state.hoveredHold === i) {
+        mat.color = new THREE.Color(0x00ff00);
+      } else {
+        mat.color = new THREE.Color(0x0000ff);
+      }
+    })
+  }
+
   recomputeColors() {
     const selectedIndex = this.state.selectedIndex;
     const parentIndex = this.parentIndex;
@@ -274,13 +281,13 @@ class App extends Component {
       for (let j = 0; j < 4; j += 1) {
         const index = skinIndex[4 * i + j];
         let color, weight;
-        if (index === selectedIndex) {
-          color = selectedColor;
-          weight = 10
-        } else if (index === hoveredIndex) {
+        if (index === hoveredIndex) {
           color = hoverColor;
           weight = 10;
-        } else if (index === parentIndex) {
+        } else if (index === selectedIndex) {
+          color = selectedColor;
+          weight = 10
+        } else  if (index === parentIndex) {
           color = parentColor;
           weight = 1;
         } else {
@@ -308,6 +315,11 @@ class App extends Component {
       this.recomputeColors();
     }
 
+    if (this.state.hoveredHold !== prevState.hoveredHold) {
+      console.log('recompute hold');
+      this.recomputeHoldColors();
+    }
+
     // this.highlightMesh.geometry = selected;
     // const clonedMesh = selected.clone();
     // this.scene2.add(flatMesh);
@@ -333,10 +345,16 @@ class App extends Component {
   }
 
   handleMouseDown = (ev) => {
-    this.setState({
-      selectedIndex: this.state.hoveredIndex,
-    })
-    this.mouseDown = true;
+    if (this.state.hoveredHold !== null) {
+      if (this.state.selectedIndex !== null) {
+        this.setTarget(this.state.selectedIndex, this.holds[this.state.hoveredHold].position);
+        this.search();
+      }
+    } else {
+      this.setState({
+        selectedIndex: this.state.hoveredIndex,
+      })
+    }
   }
 
   handleMouseUp = (ev) => {
@@ -344,16 +362,21 @@ class App extends Component {
   }
 
   handleMouseMove = (ev) => {
-    if (this.mouseDown) {
-      const delta = 0;
-      return;
-    }
     const mouse = new THREE.Vector2();
     const raycaster = new THREE.Raycaster();
   	mouse.x = ( ev.clientX / window.innerWidth ) * 2 - 1;
   	mouse.y = - ( ev.clientY / window.innerHeight ) * 2 + 1;
     raycaster.setFromCamera( mouse, this.camera );
-    console.log(raycaster);
+    const intersects = raycaster.intersectObjects(this.holds);
+    console.log(intersects);
+    if (intersects.length > 0) {
+      const hold = intersects[0].object;
+      console.log('intersecting', hold, hold.holdIndex);
+      this.setState({
+        hoveredHold: hold.holdIndex,
+      });
+      return;
+    }
 
     const positions = [];
     let mind, minbone;
@@ -367,10 +390,11 @@ class App extends Component {
         minbone = i;
       }
     });
+    const hoveredIndex = mind < 20 ? minbone : null;
     this.setState({
-      hoveredIndex: minbone,
+      hoveredIndex,
+      hoveredHold: null,
     });
-    console.log('hover', minbone);
   }
 
   handleKeyDown = (ev) => {
@@ -510,6 +534,7 @@ class App extends Component {
         const mat = bone.matrixWorld.elements;
         const actualPos = new THREE.Vector3(mat[12], mat[13], mat[14]);
         const length = actualPos.distanceTo(pos);
+        // console.log('computeloss', target, bone, actualPos, pos, length);
         sum += length * length;
       }
 
