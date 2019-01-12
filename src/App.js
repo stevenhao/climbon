@@ -16,6 +16,7 @@ const Bone = (props) => {
       'scale',
       'position',
       'name',
+      'matrixWorld',
     ]),
     childrenIds: _.map(props.children, bone => bone.name),
   }, null, '  ');
@@ -30,7 +31,7 @@ const Bone = (props) => {
     fontSize: '70%',
     fontWeight: 'bold',
     cursor: 'pointer',
-    color: props.selected ? 'cyan' : props.isParent ? 'violet' : 'white',
+    color: props.selected ? 'green' : props.isParent ? 'violet' : 'white',
   }
 
   return (
@@ -108,6 +109,7 @@ class App extends Component {
     showing: {},
     selectedIndex: -1,
   }
+  targets = []
   config = {
     constraintAngle: 100,
   }
@@ -204,6 +206,16 @@ class App extends Component {
     // this.jointMesh.material.vertexColors = THREE.VertexColors;
     this.jointMesh.material.transparent = true;
 
+    this.holds = [
+      this.makeHold(0, 0, 0),
+      this.makeHold(50, 100, 0),
+      this.makeHold(0, 200, 5),
+      this.makeHold(-80, 400, 10),
+    ];
+    for (const hold of this.holds) {
+      this.scene.add(hold)
+    }
+
     global('skinGeometry', this.skinMesh.geometry);
     const geometry = new THREE.SphereGeometry( 5, 3, 3 );
     const material = new THREE.MeshBasicMaterial( {color: 0xffff00} );
@@ -220,74 +232,69 @@ class App extends Component {
     // this.highlightMesh = highlightMesh;
 
     window.addEventListener('keydown', this.handleKeyDown);
+    el.addEventListener('mousemove', this.handleMouseMove);
+    el.addEventListener('mousedown', this.handleMouseDown);
+    el.addEventListener('mouseup', this.handleMouseUp);
 
   }
 
-  createTarget(position) {
-    const gizmo = new THREE.TransformControls(this.camera, this.renderer.domElement);
-    const target = new THREE.Object3D();
-    gizmo.setSize(0.5);
-    gizmo.attach(target);
-    gizmo.target = target;
-    target.position.copy(position);
-
-    this.scene.add(gizmo);
-    this.scene.add(target);
-    this.gizmos.push(gizmo);
-
-    return target;
-  }
-
-  setupIK() {
-    const ik = new IK.IK();
-    const chain = new IK.IKChain();
-    const constraint = new IK.IKBallConstraint(this.config.constraintAngle);
-
-    for (const bone of this.bones) {
-      const constraints = [constraint];
-      chain.add(new IK.IKJoint(bone, { constraints }));
-    }
-    // Add the chain to the IK system
-    ik.add(chain);
-
-    this.pivot = new THREE.Object3D();
-    this.pivot.rotation.x = -Math.PI / 2;
-    // Add the root bone to the scene
-    this.pivot.add(ik.getRootBone());
-
-    this.baseTarget = this.createTarget(new THREE.Vector3());
-    this.baseTarget.add(this.pivot);
-
-    this.iks.push(ik);
+  makeHold(x, y, z) {
+    const geometry = new THREE.SphereGeometry( 5, 32, 32 );
+    const material = new THREE.MeshBasicMaterial( {color: 0xffff00} );
+    const sphere = new THREE.Mesh( geometry, material );
+    sphere.position.x = x;
+    sphere.position.y = y;
+    sphere.position.z = z;
+    return sphere;
   }
 
   recomputeColors() {
     const selectedIndex = this.state.selectedIndex;
+    const parentIndex = this.parentIndex;
+    const hoveredIndex = this.state.hoveredIndex;
     const numVertices = 103440;
     const colors = new Float32Array(numVertices * 3);
     const skinIndex = this.skinMesh.geometry.getAttribute('skinIndex').array;
     const skinWeight = this.skinMesh.geometry.getAttribute('skinWeight').array;
     this.skinMesh.geometry.removeAttribute('color');
 
-    const mixColors = ([r1, g1, b1], [r2, g2, b2], w2) => {
-      const w1 = 1 - w2;
-      return [
-        r1 * w1 + r2 * w2,
-        g1 * w1 + g2 * w2,
-        b1 * w1 + b2 * w2,
-      ]
+    const normalColor = [0.07752, 0.3372, 0.4176];
+    const hoverColor = [1, 1, 1];
+    const parentColor = [238 / 256 ,130 / 256 ,238 / 256];
+    const selectedColor = [0, 1, 0];
+
+    const addColor = (ar, [r, g, b], weight) => {
+      ar[0] += r * weight;
+      ar[1] += g * weight;
+      ar[2] += b * weight;
     };
     for (let i = 0; i < numVertices; i += 1) {
-      let selectedWeight = 0;
+      let totalWeight = 0;
+      let totalColor = [0, 0, 0];
       for (let j = 0; j < 4; j += 1) {
-        if (skinIndex[4 * i + j] === selectedIndex) {
-          selectedWeight += skinWeight[4 * i + j];
+        const index = skinIndex[4 * i + j];
+        let color, weight;
+        if (index === selectedIndex) {
+          color = selectedColor;
+          weight = 10
+        } else if (index === hoveredIndex) {
+          color = hoverColor;
+          weight = 10;
+        } else if (index === parentIndex) {
+          color = parentColor;
+          weight = 1;
+        } else {
+          color = normalColor;
+          weight = 1;
         }
+        weight *= skinWeight[4 * i + j];
+        addColor(totalColor, color, weight);
+        totalWeight += weight;
       }
-      let [r, g, b] = mixColors([0.07752, 0.3372, 0.4176], [1, 1, 1], selectedWeight * 3);
-      colors[3 * i] = r;
-      colors[3 * i + 1] = g;
-      colors[3 * i + 2] = b;
+      const [ r, g, b ] = totalColor
+      colors[3 * i] = r / totalWeight;
+      colors[3 * i + 1] = g / totalWeight;
+      colors[3 * i + 2] = b / totalWeight;
     }
     this.colors = colors;
     this.skinMesh.geometry.addAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -297,9 +304,9 @@ class App extends Component {
     // this.scene2.remove(...this.scene2.children);
     // this.scene3.remove(...this.scene3.children);
 
-    const selected = this.state.bones[this.state.selectedIndex];
-    if( this.state.selectedIndex === prevState.selectedIndex) return;
-    this.recomputeColors();
+    if( this.state.selectedIndex !== prevState.selectedIndex || this.state.hoveredIndex !== prevState.hoveredIndex) {
+      this.recomputeColors();
+    }
 
     // this.highlightMesh.geometry = selected;
     // const clonedMesh = selected.clone();
@@ -323,6 +330,47 @@ class App extends Component {
     scene.add(fbx);
     const box = new THREE.Box3().setFromObject( fbx );
     console.log( box.min, box.max, box.getSize() );
+  }
+
+  handleMouseDown = (ev) => {
+    this.setState({
+      selectedIndex: this.state.hoveredIndex,
+    })
+    this.mouseDown = true;
+  }
+
+  handleMouseUp = (ev) => {
+    this.mouseDown = false;
+  }
+
+  handleMouseMove = (ev) => {
+    if (this.mouseDown) {
+      const delta = 0;
+      return;
+    }
+    const mouse = new THREE.Vector2();
+    const raycaster = new THREE.Raycaster();
+  	mouse.x = ( ev.clientX / window.innerWidth ) * 2 - 1;
+  	mouse.y = - ( ev.clientY / window.innerHeight ) * 2 + 1;
+    raycaster.setFromCamera( mouse, this.camera );
+    console.log(raycaster);
+
+    const positions = [];
+    let mind, minbone;
+    this.bones.forEach((bone, i) => {
+      const mat = bone.matrixWorld.elements;
+      const p = new THREE.Vector3(mat[12], mat[13], mat[14]);
+      positions.push(p);
+      const d = new THREE.Vector3().copy(p).sub(raycaster.ray.origin).cross(raycaster.ray.direction).length();
+      if (!mind || d < mind) {
+        mind = d;
+        minbone = i;
+      }
+    });
+    this.setState({
+      hoveredIndex: minbone,
+    });
+    console.log('hover', minbone);
   }
 
   handleKeyDown = (ev) => {
@@ -421,7 +469,9 @@ class App extends Component {
         <div style={instructionsStyle}>
           Click a bone in the Bones Panel to select a bone.<br/>
           Press Tab to select next bone.<br/>
-          Press WS/AD/QE to rotate selected bone.
+          Press WS/AD/QE to rotate selected bone.<br/>
+          <button onClick={this.search}>Search</button>
+
         </div>
         <div style={stateStyle}>
           {_.map(this.state.bones, (bone, i) => (
@@ -439,11 +489,115 @@ class App extends Component {
     );
   }
 
+  setTarget = (idx, pos) => {
+    this.targets = _.filter(this.targets, ({ idx: _idx, pos }) => _idx !== idx);
+    this.targets.push({
+      idx,
+      pos,
+    });
+  }
+
+  search = () => {
+    console.time();
+    const targets = this.targets;
+    const computeLoss = () => {
+      this.scene.updateMatrixWorld();
+      const rotations = this.bones.map(bone => new THREE.Euler().copy(bone.rotation))
+      let sum = 0;
+      for (const target of targets) {
+        const { idx, pos } = target;
+        const bone = this.bones[idx];
+        const mat = bone.matrixWorld.elements;
+        const actualPos = new THREE.Vector3(mat[12], mat[13], mat[14]);
+        const length = actualPos.distanceTo(pos);
+        sum += length * length;
+      }
+
+      // "flexibility" term
+      for (const rot of rotations) {
+        for (const dim of ['x', 'y', 'z']) {
+          sum += .5 * Math.abs(rot[dim]);
+        }
+      }
+      return sum;
+    };
+
+    const getState = () => {
+      const rootPos = new THREE.Vector3().copy(this.bones[0].position);
+      const rotations = this.bones.map(bone => new THREE.Euler().copy(bone.rotation))
+      return {
+        rootPos,
+        rotations,
+      }
+    };
+    const randomPointOnSphere = () => {
+      let x = -1 + Math.random() * 2;
+      let y = -1 + Math.random() * 2;
+      let z = -1 + Math.random() * 2;
+      const d = 1 / Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2) + Math.pow(z, 2));
+      x *= d;
+      y *= d;
+      z *= d;
+      return new THREE.Vector3(x, y, z);
+    };
+
+    const perturbPos = pos => {
+      const result = randomPointOnSphere().multiplyScalar(1).add(pos);
+      return result;
+    };
+    const perturbRot = (rot, bounds = {}) => {
+      rot = new THREE.Euler().copy(rot);
+      for (const dim of ['x', 'y', 'z']) {
+        const constraints = bounds[dim] || [0, 0];
+        rot[dim] = _.clamp(rot[dim] * .98 + (Math.random() - 0.5) * 0.2, ...constraints);
+      }
+      return rot;
+    };
+    const perturb = ({ rootPos, rotations }) => {
+      const i = Math.floor(Math.random() * rotations.length);
+      return {
+        // rootPos: perturbPos(rootPos),
+        rootPos,
+        rotations: _.map(rotations, (r, i) => perturbRot(r, joints[this.bones[i].name])),
+        // rotations: _.assign([], rotations, { [i]: perturbRot(rotations[i], joints[this.bones[i].name]), })
+      };
+    };
+    const setState = ({ rootPos, rotations }) => {
+      this.bones[0].position.copy(rootPos);
+      for (let i = 0; i < rotations.length; i += 1) {
+        this.bones[i].rotation.copy(rotations[i]);
+      }
+    };
+    let temperature = 0.5;
+    let bestLoss = computeLoss();
+    let prevLoss = computeLoss();
+    for (let i = 0; i < 5000; i += 1) {
+      temperature *= 0.95;
+      const initialState = getState();
+
+      const nextState = perturb(initialState);
+
+
+      setState(nextState);
+      const loss = computeLoss();
+      if (loss < bestLoss) bestLoss = loss;
+
+      if (loss > prevLoss && Math.random() > temperature) {
+        setState(initialState);
+      } else {
+        prevLoss = loss;
+      }
+    }
+    console.log('LOSS is', computeLoss());
+    console.log('best loss is', bestLoss);
+    console.timeEnd();
+  }
+
   wiggle() {
     console.log('wiggling');
     for (const bone of this.bones) {
       for (const axis of ['x', 'y', 'z']) {
-        const delta = (Math.random() - 0.5) / 2;
+        const delta = (Math.random() - 0.5) * 2;
         bone.rotation[axis] += delta;
         const constraint = _.get(joints, [bone.name, axis], [0, 0]);
         bone.rotation[axis] = _.clamp(bone.rotation[axis], ...constraint);
