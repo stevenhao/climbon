@@ -47,10 +47,10 @@ const Bone = (props) => {
 }
 
 const selectable = [
-  'LeftHand',
   'RightHand',
-  'LeftToeBase',
+  'LeftHand',
   'RightToeBase',
+  'LeftToeBase',
 ];
 
 const joints = {
@@ -122,6 +122,8 @@ class App extends Component {
     bones: [],
     showing: {},
     selectedIndex: null,
+    hoveredHold: null,
+    hoveredIndex: null,
   }
   targets = []
   config = {
@@ -162,7 +164,7 @@ class App extends Component {
         renderer.setClearColor(0x000000, 1);
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.autoClear = false;
-        if (this.bones && this.bones[0]) {
+        if ((this.state.selectedIndex === null || !this.dragging) && this.bones && this.bones[0]) {
           let controls = this.bones[0].position;
           const delta = (controls.y - this.controls.target.y) * 0.05;
           this.controls.target.y += delta;
@@ -226,8 +228,8 @@ class App extends Component {
       for (let i = 0; i < count; i += 1) {
         let x = Math.random()  - 0.5, z = Math.random() - 0.5;
         let d = Math.sqrt(x * x + z * z);
-        x = x * r / d;
-        z = z * r / d;
+        x = x * r / d * .7;
+        z = z * r / d  * .7;
         result.push(this.makeHold(x, y, z));
       }
       return result;
@@ -293,7 +295,6 @@ class App extends Component {
       0x880000,
       0x888800,
       0x880088,
-      0x008888,
     ]
     sphere.color = colors[Math.floor(Math.random() * colors.length)];
     return sphere;
@@ -302,7 +303,9 @@ class App extends Component {
   recomputeHoldColors() {
     this.holds.forEach((hold, i) => {
       const mat = hold.material;
-      if (this.state.hoveredHold === i) {
+      if (_.find(this.targets, {holdIndex: i})) {
+        mat.color = new THREE.Color(0x008888);
+      } else if (this.state.hoveredHold === i) {
         mat.color = new THREE.Color(0xffffff);
       } else {
         mat.color = new THREE.Color(hold.color);
@@ -322,6 +325,7 @@ class App extends Component {
 
     const normalColor = [0.07752, 0.3372, 0.4176];
     const hoverColor = [1, 1, 1];
+    const targetColor = [3, 3, 3];
     const parentColor = [238 / 256 ,130 / 256 ,238 / 256];
     const selectedColor = [0, 1, 0];
 
@@ -342,6 +346,9 @@ class App extends Component {
         } else if (index === selectedIndex) {
           color = selectedColor;
           weight = 10
+        } else if (_.find(this.targets, { idx: index }) ) {
+          color = targetColor;
+          weight = 5;
         } else  if (false && index === parentIndex) {
           color = parentColor;
           weight = 1;
@@ -400,14 +407,18 @@ class App extends Component {
 
   handleMouseDown = (ev) => {
     if (this.state.hoveredHold !== null) {
-      if (this.state.selectedIndex !== null) {
-        this.setTarget(this.state.selectedIndex, this.holds[this.state.hoveredHold].position);
+      if (this.state.selectedIndex) {
+        console.log(this.state.hoveredHold, this.holds[this.state.hoveredHold]);
+        this.setTarget(this.state.selectedIndex, this.holds[this.state.hoveredHold].position, this.state.hoveredHold);
         this.search();
+        this.setState({
+          selectedIndex: null,
+        });
       }
     } else {
       if (this.state.hoveredIndex !== null) {
         this.setState({
-          // selectedIndex: this.state.hoveredIndex,
+          selectedIndex: this.state.hoveredIndex,
         })
       }
     }
@@ -426,42 +437,58 @@ class App extends Component {
     const intersects = raycaster.intersectObjects(this.holds);
     if (intersects.length > 0) {
       const hold = intersects[0].object;
+      console.log(hold);
       this.setState({
         hoveredHold: hold.holdIndex,
       });
-      return;
+    } else {
+      this.setState({
+        hoveredHold: null,
+      });
     }
 
-    const positions = [];
-    let mind, minbone;
-    this.bones.forEach((bone, i) => {
-      const mat = bone.matrixWorld.elements;
-      const p = new THREE.Vector3(mat[12], mat[13], mat[14]);
-      positions.push(p);
-      const d = new THREE.Vector3().copy(p).sub(raycaster.ray.origin).cross(raycaster.ray.direction).length();
-      if (!mind || d < mind) {
-        mind = d;
-        minbone = i;
-      }
-    });
-    const hoveredIndex = mind < 20 ? minbone : null;
-    this.setState({
-      hoveredIndex,
-      hoveredHold: null,
-    });
+    if (this.dragging && this.state.selectedIndex !== null && !_.find(this.targets, {idx: this.state.selectedIndex, temp: false})) {
+      console.log(this.state.selectedIndex, this.bones[this.state.selectedIndex]);
+      const pos = new THREE.Vector3().copy(this.bones[this.state.selectedIndex].position);
+      pos.sub(raycaster.ray.origin).projectOnVector(raycaster.ray.direction).add(raycaster.ray.origin);
+      console.log('temp target', pos)
+      this.setTarget(this.state.selectedIndex, pos, null, {
+        temp: true
+      });
+
+      this.search();
+    }
+  }
+
+  handleKeyUp = ev => {
+    const code = ev.key;
+    if (code === 'Enter') {
+      this.dragging = false;
+    }
   }
 
   handleKeyDown = (ev) => {
     const code = ev.key;
+    console.log(ev);
+    const rawcode = ev.code;
+
     if (ev.metaKey || ev.ctrlKey) return;
     ev.preventDefault();
     ev.stopPropagation();
     if (code === ' ') {
       if (this.state.selectedIndex !== null) {
         this.clearTarget(this.state.selectedIndex);
-        this.search();
       }
+      this.search();
       return;
+    }
+    console.log(code);
+    if (code === 'Escape') {
+      this.clearTempTargets();
+      this.setState({
+        selectedIndex: null,
+      });
+      this.search();
     }
     if (code === 'Tab') {
       const a = _.indexOf(selectable, _.get(this.bones, [this.state.selectedIndex, 'name']));
@@ -469,9 +496,28 @@ class App extends Component {
       console.log(a, b);
       this.setState({selectedIndex: b})
     }
+    if (code === 'Enter') {
+      if (this.dragging) {
+        this.clearTempTargets();
+        this.dragging = false;
+      } else {
+        this.dragging = true;
+      }
+    }
+    console.log(ev);
+    if (rawcode.startsWith('Digit')) {
+      console.log('digit', rawcode);
+      const num = parseInt(rawcode.substring(5));
+      if (num <= 4) {
+        this.setState({
+          selectedIndex: _.findIndex(this.bones, { name: selectable[num - 1] })
+        })
+      }
+    }
     const bone = this.state.bones[this.state.selectedIndex];
     if (!bone) return;
     const joint = joints[bone.name] || {};
+
     const translateKey = code => {
       const delta = 0.1;
       if (code === 'w') {
@@ -563,7 +609,7 @@ class App extends Component {
           Click & drag to rotate the camera.<br/>
           {(!this.bones || !this.bones.length) && "Loading climber..."}
         </div>
-        <div style={stateStyle} hidden>
+        <div style={stateStyle}>
           {_.map(this.state.bones, (bone, i) => (
             <Bone
               key={i}
@@ -580,14 +626,21 @@ class App extends Component {
   }
 
   clearTarget = idx => {
-    this.targets = _.filter(this.targets, ({ idx: _idx, pos }) => _idx !== idx);
+    this.targets = _.filter(this.targets, ({ idx: _idx }) => _idx !== idx);
   }
 
-  setTarget = (idx, pos) => {
-    this.targets = _.filter(this.targets, ({ idx: _idx, pos }) => _idx !== idx);
+  clearTempTargets = () => {
+    this.targets = _.filter(this.targets, ({ temp }) => !temp);
+  }
+  setTarget = (idx, pos, holdIndex, {
+    temp = false,
+  } = {}) => {
+    this.targets = _.filter(this.targets, ({ idx: _idx, temp}) => _idx !== idx && !temp);
     this.targets.push({
       idx,
       pos,
+      holdIndex,
+      temp,
     });
   }
 
@@ -608,7 +661,7 @@ class App extends Component {
         const actualPos = new THREE.Vector3(mat[12], mat[13], mat[14]);
         const length = actualPos.distanceTo(pos);
         // console.log('computeloss', target, bone, actualPos, pos, length);
-        sum += length * length;
+        sum += (target.temp ? 1 : 5) * length * length;
       }
 
       // "flexibility" term
@@ -633,7 +686,7 @@ class App extends Component {
     };
 
     const getState = () => {
-      const rootPos = new THREE.Vector3().copy(this.skinMesh.position);
+      const rootPos = new THREE.Vector3().copy(this.bones[0].position);
       const rotations = this.bones.map(bone => new THREE.Euler().copy(bone.rotation))
       return {
         rootPos,
@@ -652,7 +705,7 @@ class App extends Component {
     };
 
     const perturbPos = pos => {
-      const result = randomPointOnSphere().multiplyScalar(1).add(pos);
+      const result = randomPointOnSphere().multiplyScalar(.2).add(pos);
       return result;
     };
     const perturbRot = (rot, bounds = {}, prob) => {
@@ -667,7 +720,7 @@ class App extends Component {
     const perturb = ({ rootPos, rotations }) => {
       return {
         rootPos: perturbPos(rootPos),
-        rotations: _.map(rotations, (r, i) => perturbRot(r, joints[this.bones[i].name], .2)),
+        rotations: _.map(rotations, (r, i) => perturbRot(r, joints[this.bones[i].name], .1)),
         // rotations: _.assign([], rotations, { [i]: perturbRot(rotations[i], joints[this.bones[i].name]), })
       };
     };
@@ -679,20 +732,31 @@ class App extends Component {
         this.bones[i].rotation.copy(rotations[i]);
       }
     };
-    let temperature = 0.5;
+    let temperature = 0.1;
     let bestLoss = computeLoss();
+    let bestState = getState();
     let prevLoss = computeLoss();
     const animationFrame = () => {
       return new Promise((resolve, reject) => {
         requestAnimationFrame(resolve);
       });
     }
+    const nextTick = () => {
+      return new Promise((resolve, reject) => {
+        setTimeout(resolve, 0);
+      })
+    }
+
     for (let i = 0; i < 10000; i += 1) {
       if (this.searchVersion > searchVersion){
         console.log('ending', searchVersion);
         return;
       }
-      if (i % 100 === 0 || i < 10 && i % 10 === 0) await animationFrame();
+      if (i % 100 === 0) {
+        setState(bestState);
+        await animationFrame();
+        await nextTick();
+      }
       temperature *= 0.98;
       const initialState = getState();
 
@@ -701,7 +765,10 @@ class App extends Component {
 
       setState(nextState);
       const loss = computeLoss();
-      if (loss < bestLoss) bestLoss = loss;
+      if (loss < bestLoss) {
+        bestLoss = loss;
+        bestState = nextState;
+      }
 
       if (loss > prevLoss && Math.random() > temperature) {
         setState(initialState);
