@@ -46,7 +46,19 @@ const Bone = (props) => {
   );
 }
 
+const selectable = [
+  'LeftHand',
+  'RightHand',
+  'LeftToeBase',
+  'RightToeBase',
+];
+
 const joints = {
+  'Hips': {
+    x: [-3, 3],
+    y: [-3, 3],
+    z: [-3, 3],
+  },
   'LeftArm': {
     y: [-1, 1],
     z: [-1.5, 1],
@@ -76,7 +88,7 @@ const joints = {
   },
   'Spine1': {
     x: [-.2, 1.5],
-    y: [-.2, .2],
+    y: [-1, 1],
     z: [-1, 1],
   },
   'Spine2': {
@@ -87,18 +99,20 @@ const joints = {
   },
   'LeftLeg': {
     x: [0, 2.5],
+    z: [-1.8, 0],
   },
   'LeftFoot': {
-    x: [-1, 1],
+    x: [-1, 2],
   },
   'RightUpLeg': {
     x: [-3, 0.5],
+    z: [0, 1.8],
   },
   'RightLeg': {
     x: [0, 2.5],
   },
   'RightFoot': {
-    x: [-1, 1],
+    x: [-1, 2],
   },
 };
 
@@ -113,6 +127,7 @@ class App extends Component {
   config = {
     constraintAngle: 100,
   }
+  searchVersion = 0;
   container = React.createRef()
   async componentDidMount() {
     global('app', this);
@@ -124,7 +139,7 @@ class App extends Component {
     const scene = new THREE.Scene()
     const scene2 = new THREE.Scene()
     const scene3 = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 0.25, 2000 )
+    const camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 20000 )
     renderer.setSize( window.innerWidth, window.innerHeight );
     renderer.gammaOutput = true;
 
@@ -147,7 +162,12 @@ class App extends Component {
         renderer.setClearColor(0x000000, 1);
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.autoClear = false;
-
+        if (this.bones && this.bones[0]) {
+          let controls = this.bones[0].position;
+          const delta = (controls.y - this.controls.target.y) * 0.05;
+          this.controls.target.y += delta;
+          this.camera.position.y += delta;
+        }
         // renderer.render(scene2, camera);
         // renderer.render(scene3, camera);
         this.forceUpdate();
@@ -194,19 +214,44 @@ class App extends Component {
     })
     this.recomputeColors();
     this.skinMesh.geometry.addAttribute('color', new THREE.BufferAttribute(this.colors, 3));
-    this.skinMesh.material.opacity = 0.8;
+    // this.skinMesh.material.opacity = 0.8;
     this.skinMesh.material.vertexColors = THREE.VertexColors;
     this.skinMesh.material.transparent = true;
-    this.jointMesh.material.opacity = 0.8;
+    // this.jointMesh.material.opacity = 0.8;
     // this.jointMesh.material.vertexColors = THREE.VertexColors;
     this.jointMesh.material.transparent = true;
 
+    const makeHolds = ({y, r, count}) => {
+      const result = [];
+      for (let i = 0; i < count; i += 1) {
+        let x = Math.random()  - 0.5, z = Math.random() - 0.5;
+        let d = Math.sqrt(x * x + z * z);
+        x = x * r / d;
+        z = z * r / d;
+        result.push(this.makeHold(x, y, z));
+      }
+      return result;
+    }
     this.holds = [
-      this.makeHold(0, 0, 0),
-      this.makeHold(50, 100, 0),
-      this.makeHold(0, 200, 5),
-      this.makeHold(-80, 400, 10),
-    ];
+      ...makeHolds({ y: 200, r: 100, count: 10, }),
+      ...makeHolds({ y: 250, r: 100, count: 10, }),
+      ...makeHolds({ y: 300, r: 90, count: 5, }),
+      ...makeHolds({ y: 350, r: 80, count: 5, }),
+      ...makeHolds({ y: 400, r: 70, count: 5, }),
+      ...makeHolds({ y: 450, r: 60, count: 5, }),
+      ...makeHolds({ y: 500, r: 50, count: 2, }),
+      ...makeHolds({ y: 550, r: 60, count: 2, }),
+      ...makeHolds({ y: 600, r: 70, count: 3, }),
+      ...makeHolds({ y: 650, r: 80, count: 3, }),
+      ...makeHolds({ y: 700, r: 100, count: 3, }),
+      ...makeHolds({ y: 800, r: 100, count: 2, }),
+      ...makeHolds({ y: 800, r: 100, count: 2, }),
+      ...makeHolds({ y: 800, r: 200, count: 2, }),
+      ...makeHolds({ y: 800, r: 300, count: 2, }),
+      ...makeHolds({ y: 900, r: 200, count: 5, }),
+      ...makeHolds({ y: 1000, r: 150, count: 5, }),
+      ...makeHolds({ y: 1000, r: 100, count: 5, }),
+    ]
     this.holds.forEach((hold, i) => {
       this.scene.add(hold)
       hold.holdIndex = i;
@@ -241,6 +286,15 @@ class App extends Component {
     sphere.position.x = x;
     sphere.position.y = y;
     sphere.position.z = z;
+    const colors = [
+      0x000088,
+      0x008800,
+      0x880000,
+      0x888800,
+      0x880088,
+      0x008888,
+    ]
+    sphere.color = colors[Math.floor(Math.random() * colors.length)];
     return sphere;
   }
 
@@ -248,9 +302,9 @@ class App extends Component {
     this.holds.forEach((hold, i) => {
       const mat = hold.material;
       if (this.state.hoveredHold === i) {
-        mat.color = new THREE.Color(0x00ff00);
+        mat.color = new THREE.Color(0xffffff);
       } else {
-        mat.color = new THREE.Color(0x0000ff);
+        mat.color = new THREE.Color(hold.color);
       }
     })
   }
@@ -316,7 +370,6 @@ class App extends Component {
     }
 
     if (this.state.hoveredHold !== prevState.hoveredHold) {
-      console.log('recompute hold');
       this.recomputeHoldColors();
     }
 
@@ -351,9 +404,11 @@ class App extends Component {
         this.search();
       }
     } else {
-      this.setState({
-        selectedIndex: this.state.hoveredIndex,
-      })
+      if (this.state.hoveredIndex !== null) {
+        this.setState({
+          selectedIndex: this.state.hoveredIndex,
+        })
+      }
     }
   }
 
@@ -368,10 +423,8 @@ class App extends Component {
   	mouse.y = - ( ev.clientY / window.innerHeight ) * 2 + 1;
     raycaster.setFromCamera( mouse, this.camera );
     const intersects = raycaster.intersectObjects(this.holds);
-    console.log(intersects);
     if (intersects.length > 0) {
       const hold = intersects[0].object;
-      console.log('intersecting', hold, hold.holdIndex);
       this.setState({
         hoveredHold: hold.holdIndex,
       });
@@ -403,13 +456,17 @@ class App extends Component {
     ev.preventDefault();
     ev.stopPropagation();
     if (code === ' ') {
-      this.wiggle();
+      if (this.state.selectedIndex !== null) {
+        this.clearTarget(this.state.selectedIndex);
+        this.search();
+      }
       return;
     }
     if (code === 'Tab') {
-      this.setState({
-        selectedIndex: (this.state.selectedIndex + (ev.shiftKey ? (this.state.bones.length - 1) : 1)) % Math.max(1, this.state.bones.length),
-      })
+      const a = _.indexOf(selectable, _.get(this.bones, [this.state.selectedIndex, 'name']));
+      const b = _.findIndex(this.bones, { name: selectable[(a + (ev.shiftKey ? 1 : (selectable.length - 1))) % selectable.length] });
+      console.log(a, b);
+      this.setState({selectedIndex: b})
     }
     const bone = this.state.bones[this.state.selectedIndex];
     if (!bone) return;
@@ -490,12 +547,17 @@ class App extends Component {
     return (
       <div className="App">
         <div ref={this.container}/>
-        <div style={instructionsStyle}>
+        <div style={instructionsStyle} hidden>
           Click a bone in the Bones Panel to select a bone.<br/>
           Press Tab to select next bone.<br/>
           Press WS/AD/QE to rotate selected bone.<br/>
           <button onClick={this.search}>Search</button>
 
+        </div>
+        <div style={instructionsStyle}>
+          Press Tab to select next limb.<br/>
+          Click a hold to grab a the hold.<br/>
+          Press Spacebar to release hold.<br/>
         </div>
         <div style={stateStyle}>
           {_.map(this.state.bones, (bone, i) => (
@@ -513,6 +575,10 @@ class App extends Component {
     );
   }
 
+  clearTarget = idx => {
+    this.targets = _.filter(this.targets, ({ idx: _idx, pos }) => _idx !== idx);
+  }
+
   setTarget = (idx, pos) => {
     this.targets = _.filter(this.targets, ({ idx: _idx, pos }) => _idx !== idx);
     this.targets.push({
@@ -521,7 +587,10 @@ class App extends Component {
     });
   }
 
-  search = () => {
+  search = async () => {
+    this.searchVersion += 1;
+    const searchVersion = this.searchVersion;
+    console.log('search version is', searchVersion);
     console.time();
     const targets = this.targets;
     const computeLoss = () => {
@@ -541,9 +610,21 @@ class App extends Component {
       // "flexibility" term
       for (const rot of rotations) {
         for (const dim of ['x', 'y', 'z']) {
-          sum += .5 * Math.abs(rot[dim]);
+          sum += .5 * Math.abs(rot[dim]) * (rot === rotations[0] ? 0.1 : 1);
         }
       }
+
+      // "gravity" term
+      for (const bone of this.bones) {
+        const mat = bone.matrixWorld.elements;
+        sum += 1 * Math.max(-200, mat[13]);
+        if (mat[13] < -200) {
+          sum += -200 - mat[13];
+        }
+        // if (mat[13] < -200) sum -= 0.5 * mat[13] + 200;
+      }
+
+
       return sum;
     };
 
@@ -570,7 +651,8 @@ class App extends Component {
       const result = randomPointOnSphere().multiplyScalar(1).add(pos);
       return result;
     };
-    const perturbRot = (rot, bounds = {}) => {
+    const perturbRot = (rot, bounds = {}, prob) => {
+      if (Math.random() > prob) return rot;
       rot = new THREE.Euler().copy(rot);
       for (const dim of ['x', 'y', 'z']) {
         const constraints = bounds[dim] || [0, 0];
@@ -579,11 +661,9 @@ class App extends Component {
       return rot;
     };
     const perturb = ({ rootPos, rotations }) => {
-      const i = Math.floor(Math.random() * rotations.length);
       return {
-        // rootPos: perturbPos(rootPos),
-        rootPos,
-        rotations: _.map(rotations, (r, i) => perturbRot(r, joints[this.bones[i].name])),
+        rootPos: perturbPos(rootPos),
+        rotations: _.map(rotations, (r, i) => perturbRot(r, joints[this.bones[i].name], .2)),
         // rotations: _.assign([], rotations, { [i]: perturbRot(rotations[i], joints[this.bones[i].name]), })
       };
     };
@@ -596,7 +676,17 @@ class App extends Component {
     let temperature = 0.5;
     let bestLoss = computeLoss();
     let prevLoss = computeLoss();
-    for (let i = 0; i < 5000; i += 1) {
+    const animationFrame = () => {
+      return new Promise((resolve, reject) => {
+        requestAnimationFrame(resolve);
+      });
+    }
+    for (let i = 0; i < 10000; i += 1) {
+      if (this.searchVersion > searchVersion){
+        console.log('ending', searchVersion);
+        return;
+      }
+      if (i % 100 === 0 || i < 10 && i % 10 === 0) await animationFrame();
       temperature *= 0.95;
       const initialState = getState();
 
