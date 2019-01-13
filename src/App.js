@@ -335,13 +335,13 @@ class App extends Component {
       for (let j = 0; j < 4; j += 1) {
         const index = skinIndex[4 * i + j];
         let color, weight;
-        if (index === hoveredIndex) {
+        if (false && index === hoveredIndex) {
           color = hoverColor;
           weight = 10;
         } else if (index === selectedIndex) {
           color = selectedColor;
           weight = 10
-        } else  if (index === parentIndex) {
+        } else  if (false && index === parentIndex) {
           color = parentColor;
           weight = 1;
         } else {
@@ -406,7 +406,7 @@ class App extends Component {
     } else {
       if (this.state.hoveredIndex !== null) {
         this.setState({
-          selectedIndex: this.state.hoveredIndex,
+          // selectedIndex: this.state.hoveredIndex,
         })
       }
     }
@@ -556,11 +556,14 @@ class App extends Component {
         </div>
         <div style={instructionsStyle}>
           Press Tab to select next limb.<br/>
-          Click a hold to grab a the hold.<br/>
+          Click to grab a hold.<br/>
           Press Spacebar to release hold.<br/>
+          Scroll to zoom.<br/>
+          Click & drag to rotate the camera.<br/>
+          {(!this.bones || !this.bones.length) && "Loading climber..."}
         </div>
-        <div style={stateStyle}>
-          {false&&_.map(this.state.bones, (bone, i) => (
+        <div style={stateStyle} hidden>
+          {_.map(this.state.bones, (bone, i) => (
             <Bone
               key={i}
               onClick={(e) => {e.preventDefault();this.handleToggleCollapse(i); this.setState({selectedIndex: i})}}
@@ -687,7 +690,7 @@ class App extends Component {
         return;
       }
       if (i % 100 === 0 || i < 10 && i % 10 === 0) await animationFrame();
-      temperature *= 0.95;
+      temperature *= 0.98;
       const initialState = getState();
 
       const nextState = perturb(initialState);
