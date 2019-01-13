@@ -121,7 +121,7 @@ class App extends Component {
   state = {
     bones: [],
     showing: {},
-    selectedIndex: -1,
+    selectedIndex: null,
   }
   targets = []
   config = {
@@ -264,7 +264,8 @@ class App extends Component {
     this.light = sphere;
     this.light.position.set( 0, 0, 0);
 
-    // const skinnedMesh = this.fbx.children[1];
+    this.skinMesh = this.fbx.children[1];
+    this.skeletonMesh = this.fbx.children[2];
     // const skeleton = new THREE.Skeleton(this.bones);
     // const highlightMesh = new THREE.SkinnedMesh(skinnedMesh.geometry, skinnedMesh.material);
     // highlightMesh.add(this.bones[1]);
@@ -632,7 +633,7 @@ class App extends Component {
     };
 
     const getState = () => {
-      const rootPos = new THREE.Vector3().copy(this.bones[0].position);
+      const rootPos = new THREE.Vector3().copy(this.skinMesh.position);
       const rotations = this.bones.map(bone => new THREE.Euler().copy(bone.rotation))
       return {
         rootPos,
@@ -671,6 +672,8 @@ class App extends Component {
       };
     };
     const setState = ({ rootPos, rotations }) => {
+      this.skinMesh.position.copy(rootPos);
+      this.skeletonMesh.position.copy(rootPos);
       this.bones[0].position.copy(rootPos);
       for (let i = 0; i < rotations.length; i += 1) {
         this.bones[i].rotation.copy(rotations[i]);
