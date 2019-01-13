@@ -560,7 +560,7 @@ class App extends Component {
           Press Spacebar to release hold.<br/>
         </div>
         <div style={stateStyle}>
-          {_.map(this.state.bones, (bone, i) => (
+          {false&&_.map(this.state.bones, (bone, i) => (
             <Bone
               key={i}
               onClick={(e) => {e.preventDefault();this.handleToggleCollapse(i); this.setState({selectedIndex: i})}}
